@@ -1,0 +1,20 @@
+{
+  "name": "team-cypher-echelon25",
+  "version": "1.0.0",
+  "description": "Welcome to our project repository for **Echelon'25**, the premier hackathon at **NMIMS Navi Mumbai**! 🏆",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chouhan705/Team-Cypher-Echelon25.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Chouhan705/Team-Cypher-Echelon25/issues"
+  },
+  "homepage": "https://github.com/Chouhan705/Team-Cypher-Echelon25#readme"
+}
