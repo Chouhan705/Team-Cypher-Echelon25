@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { ArrowLeft, Download, Filter, User, MapPin, Building, Calendar, FileText, X } from "lucide-react"
+import { ArrowLeft, Download, Filter, User, MapPin, Building, Calendar, FileText, X, Loader2 } from "lucide-react"
 import Link from "next/link"
+import axios from "axios"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,122 +14,137 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Navbar } from "@/components/navbar"
 
-// Mock data for job details
-const jobDetails = {
-  id: 1,
-  title: "Senior Frontend Developer",
-  department: "Engineering",
-  location: "Remote",
-  postedDate: "2023-07-15",
-  deadline: "2023-08-15",
-  description:
-    "We are looking for a Senior Frontend Developer to join our team. The ideal candidate will have experience with React, TypeScript, and Next.js.",
-  requirements: [
-    "5+ years of experience in frontend development",
-    "Strong knowledge of React, TypeScript, and Next.js",
-    "Experience with state management libraries",
-    "Good understanding of web performance optimization",
-    "Excellent communication skills",
-  ],
-  skills: ["React", "TypeScript", "Next.js", "Redux", "CSS-in-JS", "Testing"],
-}
-
-// Mock data for candidates
-const candidates = [
-  {
-    id: 1,
-    name: "Alex Johnson",
-    location: "New York, USA",
-    experience: "7 years",
-    education: "M.S. Computer Science",
-    matchScore: 95,
-    skills: ["React", "TypeScript", "Next.js", "Redux", "GraphQL"],
-    category: "best",
-    summary: "Highly skilled frontend developer with extensive experience in React ecosystem.",
-  },
-  {
-    id: 2,
-    name: "Sarah Williams",
-    location: "San Francisco, USA",
-    experience: "6 years",
-    education: "B.S. Computer Science",
-    matchScore: 92,
-    skills: ["React", "TypeScript", "Vue.js", "CSS-in-JS", "Testing"],
-    category: "best",
-    summary: "Versatile developer with strong testing and UI component skills.",
-  },
-  {
-    id: 3,
-    name: "Michael Chen",
-    location: "Toronto, Canada",
-    experience: "5 years",
-    education: "B.S. Software Engineering",
-    matchScore: 88,
-    skills: ["React", "JavaScript", "Next.js", "Tailwind CSS", "Redux"],
-    category: "better",
-    summary: "Frontend specialist with focus on responsive design and performance.",
-  },
-  {
-    id: 4,
-    name: "Emily Rodriguez",
-    location: "Austin, USA",
-    experience: "4 years",
-    education: "B.A. Computer Science",
-    matchScore: 85,
-    skills: ["React", "TypeScript", "CSS", "Jest", "Webpack"],
-    category: "better",
-    summary: "Detail-oriented developer with strong testing and optimization skills.",
-  },
-  {
-    id: 5,
-    name: "David Kim",
-    location: "Seattle, USA",
-    experience: "6 years",
-    education: "M.S. Web Development",
-    matchScore: 82,
-    skills: ["React", "JavaScript", "Redux", "SCSS", "Accessibility"],
-    category: "good",
-    summary: "Frontend developer with strong focus on accessibility and user experience.",
-  },
-  {
-    id: 6,
-    name: "Lisa Wang",
-    location: "Berlin, Germany",
-    experience: "3 years",
-    education: "B.S. Computer Science",
-    matchScore: 78,
-    skills: ["React", "TypeScript", "Material UI", "REST APIs"],
-    category: "good",
-    summary: "Frontend developer with international experience and UI framework expertise.",
-  },
-  {
-    id: 7,
-    name: "James Wilson",
-    location: "London, UK",
-    experience: "4 years",
-    education: "B.S. Information Technology",
-    matchScore: 72,
-    skills: ["React", "JavaScript", "CSS", "HTML5", "jQuery"],
-    category: "poor",
-    summary: "Web developer transitioning to modern React development.",
-  },
-  {
-    id: 8,
-    name: "Olivia Martinez",
-    location: "Madrid, Spain",
-    experience: "2 years",
-    education: "Bootcamp Graduate",
-    matchScore: 68,
-    skills: ["React", "JavaScript", "Bootstrap", "HTML", "CSS"],
-    category: "poor",
-    summary: "Junior developer with bootcamp training and growing React experience.",
-  },
-]
-
 export default function JobDetailsPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState("best")
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
-  const [selectedCandidate, setSelectedCandidate] = useState<(typeof candidates)[0] | null>(null)
+  const [selectedCandidate, setSelectedCandidate] = useState(null)
+  const [jobDetails, setJobDetails] = useState(null)
+  const [candidates, setCandidates] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+  const router = useRouter()
+  const jobId = params.id
+
+  // Get token from localStorage
+  const getToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("token")
+    }
+    return null
+  }
+
+  // Check if user is authenticated
+  useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      router.push("/login")
+    } else {
+      fetchJobDetails()
+      fetchCandidates()
+    }
+  }, [router, jobId])
+
+  // Fetch job details
+  const fetchJobDetails = async () => {
+    try {
+      setIsLoading(true)
+      const token = getToken()
+
+      try {
+        // Try to fetch from the real API
+        const response = await axios.get(`http://localhost:8000/api/job-positions/${jobId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000, // Set a timeout for faster fallback
+        })
+        setJobDetails(response.data)
+      } catch (err) {
+        console.warn("Backend connection failed, using mock data:", err)
+        // Fallback to mock data if API is unavailable
+        setJobDetails({
+          id: Number.parseInt(jobId),
+          title: "Senior Frontend Developer",
+          department: "Engineering",
+          location: "Remote",
+          postedDate: "2023-07-15",
+          deadline: "2023-08-15",
+          description:
+            "We are looking for a Senior Frontend Developer to join our team. The ideal candidate will have experience with React, TypeScript, and Next.js.",
+          requirements: [
+            "5+ years of experience in frontend development",
+            "Strong knowledge of React, TypeScript, and Next.js",
+            "Experience with state management libraries",
+            "Good understanding of web performance optimization",
+            "Excellent communication skills",
+          ],
+          skills: ["React", "TypeScript", "Next.js", "Redux", "CSS-in-JS", "Testing"],
+        })
+      }
+
+      setError("")
+    } catch (err) {
+      console.error(err)
+      setError("Failed to fetch job details. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch candidates for this job
+  const fetchCandidates = async () => {
+    try {
+      const token = getToken()
+
+      try {
+        // Try to fetch from the real API
+        const response = await axios.get(`http://localhost:8000/api/candidates?job_id=${jobId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000, // Set a timeout for faster fallback
+        })
+        setCandidates(response.data)
+      } catch (err) {
+        console.warn("Backend connection failed, using mock data:", err)
+        // Fallback to mock data if API is unavailable
+        setCandidates([
+          {
+            id: 1,
+            name: "Alex Johnson",
+            location: "New York, USA",
+            experience: "7 years",
+            education: "M.S. Computer Science",
+            matchScore: 95,
+            skills: ["React", "TypeScript", "Next.js", "Redux", "GraphQL"],
+            category: "best",
+            summary: "Highly skilled frontend developer with extensive experience in React ecosystem.",
+          },
+          {
+            id: 2,
+            name: "Sarah Williams",
+            location: "San Francisco, USA",
+            experience: "6 years",
+            education: "B.S. Computer Science",
+            matchScore: 92,
+            skills: ["React", "TypeScript", "Vue.js", "CSS-in-JS", "Testing"],
+            category: "best",
+            summary: "Versatile developer with strong testing and UI component skills.",
+          },
+          {
+            id: 3,
+            name: "Michael Chen",
+            location: "Toronto, Canada",
+            experience: "5 years",
+            education: "B.S. Software Engineering",
+            matchScore: 88,
+            skills: ["React", "JavaScript", "Next.js", "Tailwind CSS", "Redux"],
+            category: "better",
+            summary: "Frontend specialist with focus on responsive design and performance.",
+          },
+        ])
+      }
+    } catch (err) {
+      console.error(err)
+      setError("Failed to fetch candidates. Please try again.")
+    }
+  }
 
   // Filter candidates based on active tab
   const filteredCandidates = candidates.filter((candidate) => {
@@ -182,6 +199,28 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
       default:
         return "Unknown"
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+      </div>
+    )
+  }
+
+  if (!jobDetails) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-400 mb-2">Job Not Found</h2>
+          <p className="text-gray-300 mb-4">The job position you're looking for doesn't exist or has been removed.</p>
+          <Button variant="gradient" asChild>
+            <Link href="/recruiter-dashboard">Back to Dashboard</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -256,6 +295,8 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
+          {error && <p className="text-red-500 mb-4">{error}</p>}
+
           <Tabs defaultValue="best" value={activeTab} onValueChange={setActiveTab} className="mb-6">
             <TabsList className="grid grid-cols-5 w-full max-w-3xl">
               <TabsTrigger value="best">Best</TabsTrigger>
@@ -328,7 +369,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
               <User className="h-16 w-16 mx-auto text-gray-500 mb-4" />
               <h3 className="text-xl font-medium text-gray-300 mb-2">No candidates found</h3>
               <p className="text-gray-400 mb-6">Try adjusting your filters or upload more resumes</p>
-              <Button variant="gradient">Upload Resumes</Button>
+              <Button variant="gradient" onClick={() => router.push("/handler-dashboard")}>
+                Upload Resumes
+              </Button>
             </motion.div>
           )}
         </motion.div>
@@ -438,7 +481,9 @@ export default function JobDetailsPage({ params }: { params: { id: string } }) {
                     <Button variant="glass">
                       <Download className="mr-2 h-4 w-4" /> Download Resume
                     </Button>
-                    <Button variant="gradient">Move to Final Selection</Button>
+                    <Button variant="gradient" onClick={() => router.push(`/final-selection/${selectedCandidate.id}`)}>
+                      Move to Final Selection
+                    </Button>
                   </div>
                 </div>
               </div>

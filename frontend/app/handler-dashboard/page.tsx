@@ -2,10 +2,12 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Search, Upload, FileText, X, Filter } from "lucide-react"
+import { Search, Upload, FileText, X, Filter, Loader2 } from "lucide-react"
 import Link from "next/link"
+import axios from "axios"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,64 +23,6 @@ import {
 } from "@/components/ui/dialog"
 import { Navbar } from "@/components/navbar"
 
-// Mock data for job positions
-const jobPositions = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    department: "Engineering",
-    location: "Remote",
-    candidates: 24,
-    status: "In Progress",
-    deadline: "2023-08-15",
-  },
-  {
-    id: 2,
-    title: "UX Designer",
-    department: "Design",
-    location: "New York",
-    candidates: 18,
-    status: "In Progress",
-    deadline: "2023-08-20",
-  },
-  {
-    id: 3,
-    title: "Product Manager",
-    department: "Product",
-    location: "San Francisco",
-    candidates: 32,
-    status: "In Progress",
-    deadline: "2023-08-10",
-  },
-  {
-    id: 4,
-    title: "DevOps Engineer",
-    department: "Engineering",
-    location: "Remote",
-    candidates: 12,
-    status: "In Progress",
-    deadline: "2023-08-25",
-  },
-  {
-    id: 5,
-    title: "Marketing Specialist",
-    department: "Marketing",
-    location: "London",
-    candidates: 8,
-    status: "In Progress",
-    deadline: "2023-08-18",
-  },
-  {
-    id: 6,
-    title: "Data Scientist",
-    department: "Data",
-    location: "Berlin",
-    candidates: 15,
-    status: "In Progress",
-    deadline: "2023-08-22",
-  },
-]
-
 export default function HandlerDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
@@ -86,6 +30,90 @@ export default function HandlerDashboard() {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [jobPositions, setJobPositions] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [selectedJobId, setSelectedJobId] = useState("")
+  const [resumeText, setResumeText] = useState("")
+  const router = useRouter()
+
+  // Get token from localStorage
+  const getToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("token")
+    }
+    return null
+  }
+
+  // Check if user is authenticated and has the handler role
+  useEffect(() => {
+    const token = getToken()
+    const role = localStorage.getItem("role")
+
+    if (!token) {
+      router.push("/login")
+    } else if (role !== "handler") {
+      router.push("/recruiter-dashboard")
+    } else {
+      fetchJobPositions()
+    }
+  }, [router])
+
+  // Fetch job positions from the API
+  const fetchJobPositions = async () => {
+    try {
+      setIsLoading(true)
+      const token = getToken()
+
+      try {
+        // Try to fetch from the real API
+        const response = await axios.get("http://localhost:8000/api/job-positions", {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000, // Set a timeout for faster fallback
+        })
+        setJobPositions(response.data)
+      } catch (err) {
+        console.warn("Backend connection failed, using mock data:", err)
+        // Fallback to mock data if API is unavailable
+        setJobPositions([
+          {
+            id: 1,
+            title: "Senior Frontend Developer",
+            department: "Engineering",
+            location: "Remote",
+            candidates: 24,
+            status: "In Progress",
+            deadline: "2023-08-15",
+          },
+          {
+            id: 2,
+            title: "UX Designer",
+            department: "Design",
+            location: "New York",
+            candidates: 18,
+            status: "In Progress",
+            deadline: "2023-08-20",
+          },
+          {
+            id: 3,
+            title: "Product Manager",
+            department: "Product",
+            location: "San Francisco",
+            candidates: 32,
+            status: "In Progress",
+            deadline: "2023-08-10",
+          },
+        ])
+      }
+
+      setError("")
+    } catch (err) {
+      console.error(err)
+      setError("Failed to fetch job positions. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const filteredPositions = jobPositions.filter(
     (position) =>
@@ -110,32 +138,59 @@ export default function HandlerDashboard() {
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0]
       setSelectedFile(file)
+      readFileContent(file)
     }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0])
+      const file = e.target.files[0]
+      setSelectedFile(file)
+      readFileContent(file)
     }
   }
 
-  const handleUpload = () => {
-    if (!selectedFile) return
+  const readFileContent = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      setResumeText(content || "")
+    }
+    reader.readAsText(file)
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile || !selectedJobId) return
 
     setIsUploading(true)
 
-    // Simulate upload
-    setTimeout(() => {
-      setIsUploading(false)
+    try {
+      const token = getToken()
+      await axios.post(
+        "http://localhost:8000/api/upload-resume",
+        {
+          jobId: Number.parseInt(selectedJobId),
+          resumeText: resumeText,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
       setUploadSuccess(true)
 
       // Reset after showing success message
       setTimeout(() => {
         setUploadSuccess(false)
         setSelectedFile(null)
+        setResumeText("")
+        setSelectedJobId("")
         setIsUploadDialogOpen(false)
       }, 1500)
-    }, 2000)
+    } catch (err) {
+      console.error(err)
+      setError("Failed to upload resume. Please try again.")
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const fadeIn = {
@@ -155,6 +210,14 @@ export default function HandlerDashboard() {
         staggerChildren: 0.1,
       },
     },
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+      </div>
+    )
   }
 
   return (
@@ -201,6 +264,8 @@ export default function HandlerDashboard() {
           </div>
         </motion.div>
 
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
         <motion.div
           variants={staggerContainer}
           initial="hidden"
@@ -232,7 +297,7 @@ export default function HandlerDashboard() {
                   <CardFooter className="flex justify-between">
                     <div className="flex items-center text-gray-300">
                       <FileText className="h-4 w-4 mr-2 text-blue-400" />
-                      <span>{position.candidates} Candidates</span>
+                      <span>{position.candidates?.length || 0} Candidates</span>
                     </div>
                     <Button variant="ghost" className="text-blue-400 p-0 hover:text-blue-300">
                       View Details
@@ -243,6 +308,14 @@ export default function HandlerDashboard() {
             </motion.div>
           ))}
         </motion.div>
+
+        {filteredPositions.length === 0 && !isLoading && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+            <FileText className="h-16 w-16 mx-auto text-gray-500 mb-4" />
+            <h3 className="text-xl font-medium text-gray-300 mb-2">No job positions found</h3>
+            <p className="text-gray-400 mb-6">Try adjusting your search or check back later</p>
+          </motion.div>
+        )}
       </main>
 
       <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
@@ -281,11 +354,11 @@ export default function HandlerDashboard() {
                       type="file"
                       id="resume-upload"
                       className="hidden"
-                      accept=".pdf,.doc,.docx"
+                      accept=".pdf,.doc,.docx,.txt"
                       onChange={handleFileChange}
                     />
                   </div>
-                  <p className="text-xs text-gray-400">Supported formats: PDF, DOC, DOCX</p>
+                  <p className="text-xs text-gray-400">Supported formats: PDF, DOC, DOCX, TXT</p>
                 </div>
               ) : (
                 <motion.div
@@ -301,7 +374,10 @@ export default function HandlerDashboard() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setSelectedFile(null)}
+                    onClick={() => {
+                      setSelectedFile(null)
+                      setResumeText("")
+                    }}
                     className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                   >
                     Remove
@@ -319,6 +395,8 @@ export default function HandlerDashboard() {
                   <select
                     id="position"
                     className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={selectedJobId}
+                    onChange={(e) => setSelectedJobId(e.target.value)}
                   >
                     <option value="">Select a position...</option>
                     {jobPositions.map((position) => (
@@ -333,13 +411,13 @@ export default function HandlerDashboard() {
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsUploadDialogOpen(false)}>
+            <Button variant="ghost" onClick={() => setIsUploadDialogOpen(false)} disabled={isUploading}>
               Cancel
             </Button>
             <Button
               variant="gradient"
               onClick={handleUpload}
-              disabled={!selectedFile || isUploading}
+              disabled={!selectedFile || !selectedJobId || isUploading}
               className="relative"
             >
               {isUploading ? (

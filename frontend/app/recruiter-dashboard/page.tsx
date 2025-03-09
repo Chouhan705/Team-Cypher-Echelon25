@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Plus, Search, Briefcase, Users, Filter, X } from "lucide-react"
+import { Plus, Search, Briefcase, Users, Filter, X, Loader2 } from "lucide-react"
 import Link from "next/link"
+import axios from "axios"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,67 +21,151 @@ import {
 } from "@/components/ui/dialog"
 import { Navbar } from "@/components/navbar"
 
-// Mock data for job openings
-const jobOpenings = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    department: "Engineering",
-    location: "Remote",
-    applicants: 24,
-    status: "Active",
-    skills: ["React", "TypeScript", "Next.js"],
-  },
-  {
-    id: 2,
-    title: "UX Designer",
-    department: "Design",
-    location: "New York",
-    applicants: 18,
-    status: "Active",
-    skills: ["Figma", "UI/UX", "Prototyping"],
-  },
-  {
-    id: 3,
-    title: "Product Manager",
-    department: "Product",
-    location: "San Francisco",
-    applicants: 32,
-    status: "Active",
-    skills: ["Agile", "Roadmapping", "User Research"],
-  },
-  {
-    id: 4,
-    title: "DevOps Engineer",
-    department: "Engineering",
-    location: "Remote",
-    applicants: 12,
-    status: "Active",
-    skills: ["AWS", "Docker", "Kubernetes"],
-  },
-  {
-    id: 5,
-    title: "Marketing Specialist",
-    department: "Marketing",
-    location: "London",
-    applicants: 8,
-    status: "Active",
-    skills: ["SEO", "Content Marketing", "Analytics"],
-  },
-  {
-    id: 6,
-    title: "Data Scientist",
-    department: "Data",
-    location: "Berlin",
-    applicants: 15,
-    status: "Active",
-    skills: ["Python", "Machine Learning", "SQL"],
-  },
-]
-
 export default function RecruiterDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [jobOpenings, setJobOpenings] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [newJob, setNewJob] = useState({
+    title: "",
+    department: "",
+    location: "",
+    skills: "",
+    description: "",
+    requirements: "",
+    deadline: "",
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
+
+  // Get token from localStorage
+  const getToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("token")
+    }
+    return null
+  }
+
+  // Check if user is authenticated and has the recruiter role
+  useEffect(() => {
+    const token = getToken()
+    const role = localStorage.getItem("role")
+
+    if (!token) {
+      router.push("/login")
+    } else if (role !== "recruiter") {
+      router.push("/handler-dashboard")
+    } else {
+      fetchJobPositions()
+    }
+  }, [router])
+
+  // Fetch job positions from the API
+  const fetchJobPositions = async () => {
+    try {
+      setIsLoading(true)
+      const token = getToken()
+
+      try {
+        // Try to fetch from the real API
+        const response = await axios.get("http://localhost:8000/api/job-positions", {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 3000, // Set a timeout for faster fallback
+        })
+        setJobOpenings(response.data)
+      } catch (err) {
+        console.warn("Backend connection failed, using mock data:", err)
+        // Fallback to mock data if API is unavailable
+        setJobOpenings([
+          {
+            id: 1,
+            title: "Senior Frontend Developer",
+            department: "Engineering",
+            location: "Remote",
+            applicants: 24,
+            status: "Active",
+            skills: ["React", "TypeScript", "Next.js"],
+            requirements: ["5+ years of experience", "Strong React knowledge"],
+            description: "We are looking for a Senior Frontend Developer",
+            deadline: "2023-12-31",
+          },
+          {
+            id: 2,
+            title: "UX Designer",
+            department: "Design",
+            location: "New York",
+            applicants: 18,
+            status: "Active",
+            skills: ["Figma", "UI/UX", "Prototyping"],
+            requirements: ["3+ years of experience", "Strong design portfolio"],
+            description: "We are looking for a UX Designer",
+            deadline: "2023-12-31",
+          },
+        ])
+      }
+
+      setError("")
+    } catch (err) {
+      console.error(err)
+      setError("Failed to fetch job positions. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle input change for new job form
+  const handleInputChange = (e) => {
+    const { id, value } = e.target
+    setNewJob((prev) => ({ ...prev, [id]: value }))
+  }
+
+  // Handle job creation
+  const handleCreateJob = async () => {
+    try {
+      setIsSubmitting(true)
+      const token = getToken()
+
+      // Format the job data
+      const jobData = {
+        title: newJob.title,
+        department: newJob.department,
+        location: newJob.location,
+        description: newJob.description,
+        requirements: newJob.requirements.split("\n").filter((req) => req.trim() !== ""),
+        skills: newJob.skills
+          .split(",")
+          .map((skill) => skill.trim())
+          .filter((skill) => skill !== ""),
+        deadline: newJob.deadline,
+        status: "Active",
+      }
+
+      await axios.post("http://localhost:8000/api/job-positions", jobData, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      // Reset form and close dialog
+      setNewJob({
+        title: "",
+        department: "",
+        location: "",
+        skills: "",
+        description: "",
+        requirements: "",
+        deadline: "",
+      })
+      setIsDialogOpen(false)
+
+      // Refresh job positions
+      fetchJobPositions()
+    } catch (err) {
+      console.error(err)
+      setError("Failed to create job. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const filteredJobs = jobOpenings.filter(
     (job) =>
@@ -106,6 +192,14 @@ export default function RecruiterDashboard() {
         staggerChildren: 0.1,
       },
     },
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+      </div>
+    )
   }
 
   return (
@@ -152,6 +246,8 @@ export default function RecruiterDashboard() {
           </div>
         </motion.div>
 
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+
         <motion.div
           variants={staggerContainer}
           initial="hidden"
@@ -187,7 +283,7 @@ export default function RecruiterDashboard() {
                   <CardFooter className="flex justify-between">
                     <div className="flex items-center text-gray-300">
                       <Users className="h-4 w-4 mr-2 text-blue-400" />
-                      <span>{job.applicants} Applicants</span>
+                      <span>{job.candidates?.length || 0} Applicants</span>
                     </div>
                     <Button variant="ghost" className="text-blue-400 p-0 hover:text-blue-300">
                       View Details
@@ -222,10 +318,15 @@ export default function RecruiterDashboard() {
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor="job-title" className="text-sm text-gray-300">
+              <label htmlFor="title" className="text-sm text-gray-300">
                 Job Title
               </label>
-              <Input id="job-title" className="bg-slate-800/50 border-slate-700" />
+              <Input
+                id="title"
+                className="bg-slate-800/50 border-slate-700"
+                value={newJob.title}
+                onChange={handleInputChange}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -233,13 +334,23 @@ export default function RecruiterDashboard() {
                 <label htmlFor="department" className="text-sm text-gray-300">
                   Department
                 </label>
-                <Input id="department" className="bg-slate-800/50 border-slate-700" />
+                <Input
+                  id="department"
+                  className="bg-slate-800/50 border-slate-700"
+                  value={newJob.department}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="grid gap-2">
                 <label htmlFor="location" className="text-sm text-gray-300">
                   Location
                 </label>
-                <Input id="location" className="bg-slate-800/50 border-slate-700" />
+                <Input
+                  id="location"
+                  className="bg-slate-800/50 border-slate-700"
+                  value={newJob.location}
+                  onChange={handleInputChange}
+                />
               </div>
             </div>
 
@@ -247,7 +358,40 @@ export default function RecruiterDashboard() {
               <label htmlFor="skills" className="text-sm text-gray-300">
                 Required Skills (comma separated)
               </label>
-              <Input id="skills" className="bg-slate-800/50 border-slate-700" />
+              <Input
+                id="skills"
+                className="bg-slate-800/50 border-slate-700"
+                value={newJob.skills}
+                onChange={handleInputChange}
+                placeholder="React, TypeScript, Next.js"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <label htmlFor="deadline" className="text-sm text-gray-300">
+                Application Deadline
+              </label>
+              <Input
+                id="deadline"
+                type="date"
+                className="bg-slate-800/50 border-slate-700"
+                value={newJob.deadline}
+                onChange={handleInputChange}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <label htmlFor="requirements" className="text-sm text-gray-300">
+                Requirements (one per line)
+              </label>
+              <textarea
+                id="requirements"
+                rows={3}
+                className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                value={newJob.requirements}
+                onChange={handleInputChange}
+                placeholder="5+ years of experience in frontend development&#10;Strong knowledge of React, TypeScript, and Next.js"
+              />
             </div>
 
             <div className="grid gap-2">
@@ -258,16 +402,29 @@ export default function RecruiterDashboard() {
                 id="description"
                 rows={5}
                 className="w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                value={newJob.description}
+                onChange={handleInputChange}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="ghost" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button variant="gradient" onClick={() => setIsDialogOpen(false)}>
-              Create Job
+            <Button
+              variant="gradient"
+              onClick={handleCreateJob}
+              disabled={isSubmitting || !newJob.title || !newJob.department}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Job"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

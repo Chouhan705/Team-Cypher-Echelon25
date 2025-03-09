@@ -2,17 +2,43 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Menu, X } from "lucide-react"
+import { Menu, X, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [userRole, setUserRole] = useState("")
+  const router = useRouter()
+
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem("token")
+    const role = localStorage.getItem("role")
+
+    if (token) {
+      setIsLoggedIn(true)
+      setUserRole(role || "")
+    } else {
+      setIsLoggedIn(false)
+      setUserRole("")
+    }
+  }, [])
 
   const toggleMenu = () => {
     setIsOpen(!isOpen)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("role")
+    setIsLoggedIn(false)
+    setUserRole("")
+    router.push("/login")
   }
 
   const menuVariants = {
@@ -41,6 +67,15 @@ export function Navbar() {
     closed: { opacity: 0, y: -10 },
   }
 
+  const getDashboardLink = () => {
+    if (userRole === "recruiter") {
+      return "/recruiter-dashboard"
+    } else if (userRole === "handler") {
+      return "/handler-dashboard"
+    }
+    return "/"
+  }
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glassmorphism">
       <div className="container mx-auto px-4 py-3">
@@ -56,13 +91,36 @@ export function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-6">
-            <NavLink href="/">Home</NavLink>
-            <NavLink href="/features">Features</NavLink>
-            <NavLink href="/about">About</NavLink>
-            <NavLink href="/contact">Contact</NavLink>
-            <Button variant="glow" asChild>
-              <Link href="/login">Get Started</Link>
-            </Button>
+            {isLoggedIn ? (
+              <>
+                <NavLink href={getDashboardLink()}>Dashboard</NavLink>
+                {userRole === "recruiter" && (
+                  <>
+                    <NavLink href="/recruiter-dashboard">Jobs</NavLink>
+                    <NavLink href="/final-selection/1">Selection</NavLink>
+                  </>
+                )}
+                {userRole === "handler" && (
+                  <>
+                    <NavLink href="/handler-dashboard">Jobs</NavLink>
+                    <NavLink href="/job-details/1">Candidates</NavLink>
+                  </>
+                )}
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-300 hover:text-red-400">
+                  <LogOut className="h-4 w-4 mr-2" /> Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <NavLink href="/">Home</NavLink>
+                <NavLink href="/features">Features</NavLink>
+                <NavLink href="/about">About</NavLink>
+                <NavLink href="/contact">Contact</NavLink>
+                <Button variant="glow" asChild>
+                  <Link href="/login">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           <div className="md:hidden">
@@ -79,23 +137,62 @@ export function Navbar() {
           variants={menuVariants}
         >
           <div className="flex flex-col space-y-4 py-4">
-            <MobileNavLink href="/" variants={itemVariants}>
-              Home
-            </MobileNavLink>
-            <MobileNavLink href="/features" variants={itemVariants}>
-              Features
-            </MobileNavLink>
-            <MobileNavLink href="/about" variants={itemVariants}>
-              About
-            </MobileNavLink>
-            <MobileNavLink href="/contact" variants={itemVariants}>
-              Contact
-            </MobileNavLink>
-            <motion.div variants={itemVariants}>
-              <Button variant="glow" className="w-full" asChild>
-                <Link href="/login">Get Started</Link>
-              </Button>
-            </motion.div>
+            {isLoggedIn ? (
+              <>
+                <MobileNavLink href={getDashboardLink()} variants={itemVariants}>
+                  Dashboard
+                </MobileNavLink>
+                {userRole === "recruiter" && (
+                  <>
+                    <MobileNavLink href="/recruiter-dashboard" variants={itemVariants}>
+                      Jobs
+                    </MobileNavLink>
+                    <MobileNavLink href="/final-selection/1" variants={itemVariants}>
+                      Selection
+                    </MobileNavLink>
+                  </>
+                )}
+                {userRole === "handler" && (
+                  <>
+                    <MobileNavLink href="/handler-dashboard" variants={itemVariants}>
+                      Jobs
+                    </MobileNavLink>
+                    <MobileNavLink href="/job-details/1" variants={itemVariants}>
+                      Candidates
+                    </MobileNavLink>
+                  </>
+                )}
+                <motion.div variants={itemVariants}>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-gray-300 hover:text-red-400"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" /> Logout
+                  </Button>
+                </motion.div>
+              </>
+            ) : (
+              <>
+                <MobileNavLink href="/" variants={itemVariants}>
+                  Home
+                </MobileNavLink>
+                <MobileNavLink href="/features" variants={itemVariants}>
+                  Features
+                </MobileNavLink>
+                <MobileNavLink href="/about" variants={itemVariants}>
+                  About
+                </MobileNavLink>
+                <MobileNavLink href="/contact" variants={itemVariants}>
+                  Contact
+                </MobileNavLink>
+                <motion.div variants={itemVariants}>
+                  <Button variant="glow" className="w-full" asChild>
+                    <Link href="/login">Get Started</Link>
+                  </Button>
+                </motion.div>
+              </>
+            )}
           </div>
         </motion.div>
       </div>
